@@ -411,7 +411,7 @@ class PDFWorker
     end
 
     # Switch to the named branch
-    switch_git_branch(custom_branch) if custom_branch
+    switch_git_branch(issue_id, custom_branch) if custom_branch
 
     # Compile the paper
     pdf_path, stderr, status = compile(issue_id)
@@ -440,7 +440,7 @@ class PDFWorker
     Open3.capture3("whedon download #{issue_id}")
   end
 
-  def switch_git_branch(branch_name)
+  def switch_git_branch(issue_id, branch_name)
     puts "Switching to #{branch_name} git branch"
     `cd tmp/#{issue_id} && git checkout #{branch_name}`
   end
