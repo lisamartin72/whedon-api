@@ -448,6 +448,7 @@ class PDFWorker
   # Use the Whedon gem to compile the paper
   def compile(issue_id)
     puts "Compiling #{ENV['REVIEW_REPOSITORY']}/#{issue_id}"
+    `cd tmp/#{issue_id} && git checkout arfon`
     Open3.capture3("whedon prepare #{issue_id}")
   end
 
