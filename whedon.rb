@@ -159,6 +159,8 @@ def robawt_respond
   when /\A@whedon assignments/i
     reviewers, editors = assignments
     respond erb :assignments, :locals => { :reviewers => reviewers, :editors => editors, :all_editors => @config.editors }
+  when /\A@whedon generate pdf from branch (.*)/i
+    process_pdf($1)
   when /\A@whedon generate pdf/i
     process_pdf
   end
@@ -172,11 +174,23 @@ def respond(comment, nwo=nil, issue_id=nil)
 end
 
 # Download and compile the PDF
-def process_pdf
+# Optionally take a branch name to compile from
+def process_pdf(branch=nil)
   puts "In #process_pdf"
   # TODO refactor this so we're not passing so many arguments to the method
-  respond "```\nAttempting PDF compilation. Reticulating splines etc...\n```"
-  PDFWorker.perform_async(@config.papers, @config.site_host, @config.site_name, @nwo, @issue_id, @config.doi_journal, @config.journal_launch_date)
+  if branch
+    respond "```\nAttempting PDF compilation from '#{branch}' branch. Reticulating splines etc...\n```"
+  else
+    respond "```\nAttempting PDF compilation from default branch. Reticulating splines etc...\n```"
+  end
+  PDFWorker.perform_async(@config.papers,
+                          branch,
+                          @config.site_host,
+                          @config.site_name,
+                          @nwo,
+                          @issue_id,
+                          @config.doi_journal,
+                          @config.journal_launch_date)
 end
 
 # Detect the languages and license of the review repository
@@ -380,7 +394,7 @@ class PDFWorker
   # Including this means we can talk to GitHub from the background worker.
   include GitHub
 
-  def perform(papers_repo, site_host, site_name, nwo, issue_id, journal_alias, journal_launch_date)
+  def perform(papers_repo, custom_branch, site_host, site_name, nwo, issue_id, journal_alias, journal_launch_date)
     set_env(papers_repo, site_host, site_name, journal_alias, journal_launch_date, nwo)
 
     # Download the paper
@@ -395,6 +409,9 @@ class PDFWorker
     if !status.success?
       bg_respond(nwo, issue_id, "Downloading of the repository for issue ##{issue_id} failed with the following error: \n\n #{stderr}") and return
     end
+
+    # Switch to the named branch
+    switch_git_branch(custom_branch) if custom_branch
 
     # Compile the paper
     pdf_path, stderr, status = compile(issue_id)
@@ -421,6 +438,11 @@ class PDFWorker
     puts "Downloading #{ENV['REVIEW_REPOSITORY']}"
     FileUtils.rm_rf("tmp/#{issue_id}") if Dir.exist?("tmp/#{issue_id}")
     Open3.capture3("whedon download #{issue_id}")
+  end
+
+  def switch_git_branch(branch_name)
+    puts "Switching to #{branch_name} git branch"
+    `cd tmp/#{issue_id} && git checkout #{branch_name}`
   end
 
   # Use the Whedon gem to compile the paper
